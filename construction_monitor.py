@@ -11,13 +11,17 @@ TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN_CONSTRUCTION", "8632044944:AAFaT
 TELEGRAM_CHAT_IDS = ["248752467","6522826404"]  # добавь ID друга если нужно
 
 KEYWORDS = [
-    # Русские
-    "консультант по строительству", "строительный консультант",
-    "консультант строительных проектов", "управление строительными проектами",
-    "менеджер строительных проектов", "руководитель строительных проектов",
-    "технический консультант строительство", "консультант девелопмент",
-    "консультант недвижимость", "управление девелоперскими проектами",
-    "project manager строительство", "PM строительство",
+    # Русские — точные названия позиций
+    "технический консультант строительство",
+    "ведущий инженер строительный консалтинг",
+    "инженер технический надзор",
+    "старший консультант строительство",
+    "технический надзор строительство",
+    "строительный консалтинг",
+    "консультант инфраструктурные проекты",
+    "менеджер инфраструктурных проектов",
+    "руководитель инфраструктурных проектов",
+    "технический менеджер проекта строительство",
     # Английские
     "construction consultant", "construction project consultant",
     "construction project manager", "construction advisory",
@@ -72,15 +76,23 @@ RUSSIA_LOCATIONS = [
     "ростов", "уфа", "красноярск", "воронеж", "пермь", "россия"
 ]
 
+# Стоп-слова в названии вакансии — исключаем сразу
+TITLE_STOP_WORDS = [
+    "продавец", "менеджер по продажам", "торговый", "sales",
+    "прораб", "монтажник", "сварщик", "электрик", "слесарь",
+    "водитель", "кладовщик", "грузчик", "разнорабочий",
+    "дизайнер интерьера", "сметчик", "снабжение",
+]
+
 REMOTE_MARKERS = [
     "удалённо", "удаленно", "дистанционно", "remote", "fully remote",
     "100% remote", "work from anywhere", "worldwide", "anywhere",
     "из любой точки", "из любой страны", "home office", "wfh",
 ]
 
-SALARY_MIN = {"USD": 2000, "EUR": 2000, "RUR": 200000}
+SALARY_MIN = {"USD": 3000, "EUR": 3000, "RUR": 300000, "KZT": 700000}
 
-CHECK_INTERVAL = 86400
+CHECK_INTERVAL = 7200
 SEEN_FILE = "seen_jobs_construction.json"
 
 MODE_ALL = "all"
@@ -103,6 +115,10 @@ def is_russia_location(area):
 
 def is_office_schedule(schedule):
     return any(s in schedule.lower() for s in ["полный день", "сменный", "вахтовый"])
+
+def has_stop_word(title):
+    t = title.lower()
+    return any(w in t for w in TITLE_STOP_WORDS)
 
 def is_remote_worldwide(area, schedule, text):
     combined = f"{area} {schedule} {text}".lower()
@@ -158,22 +174,21 @@ async def fetch_hh(seen, mode):
     jobs = []
 
     searches = [
-        {"text": "консультант строительство", "schedule": "remote"},
-        {"text": "строительный консультант"},
-        {"text": "консультант строительных проектов"},
-        {"text": "управление строительными проектами"},
+        # Русские — точные запросы
+        {"text": "технический консультант строительство"},
+        {"text": "ведущий инженер строительный консалтинг"},
+        {"text": "инженер технический надзор строительство"},
+        {"text": "старший консультант строительство"},
+        {"text": "строительный консалтинг консультант"},
+        {"text": "менеджер инфраструктурных проектов"},
+        # Английские
         {"text": "construction consultant"},
         {"text": "construction project manager"},
         {"text": "capital projects consultant"},
         {"text": "construction advisory"},
-        {"text": "технический консультант строительство"},
-        {"text": "консультант девелопмент"},
-        {"text": "технический аудитор"},
-        {"text": "технический аудит проекта"},
-        {"text": "технический советник"},
-        {"text": "technical auditor"},
-        {"text": "technical advisor"},
-        {"text": "project auditor"},
+        {"text": "technical auditor construction"},
+        {"text": "technical advisor infrastructure"},
+        {"text": "project auditor construction"},
         {"text": "technical due diligence"},
         {"text": "senior associate infrastructure"},
         # Big 4 / Big 5
@@ -222,6 +237,8 @@ async def fetch_hh(seen, mode):
                     full_text = f"{title} {snippet.get('requirement', '') or ''} {snippet.get('responsibility', '') or ''}"
                     location_str = f"{area} · {schedule}".strip(" ·")
 
+                    if has_stop_word(title):
+                        continue
                     if is_usa(location_str):
                         continue
                     if is_russia_location(area) and is_office_schedule(schedule):
@@ -458,3 +475,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
