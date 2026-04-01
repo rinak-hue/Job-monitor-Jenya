@@ -90,7 +90,42 @@ REMOTE_MARKERS = [
     "из любой точки", "из любой страны", "home office", "wfh",
 ]
 
-SALARY_MIN = {"USD": 3000, "EUR": 3000, "RUR": 300000, "KZT": 700000}
+SALARY_MIN = {"USD": 2000, "EUR": 2000, "RUR": 200000, "KZT": 700000}
+
+# Азиатские локации для фильтра
+ASIA_LOCATIONS = [
+    # Ближний Восток
+    "dubai", "abu dhabi", "uae", "united arab emirates",
+    "дубай", "абу-даби", "оаэ",
+    "saudi arabia", "riyadh", "jeddah", "ksa",
+    "саудовская аравия", "эр-рияд", "джидда",
+    "qatar", "doha", "катар", "доха",
+    "kuwait", "кувейт",
+    # СНГ
+    "kazakhstan", "almaty", "astana", "nur-sultan",
+    "казахстан", "алматы", "астана",
+    "uzbekistan", "tashkent", "ташкент", "узбекистан",
+    # Азия
+    "singapore", "сингапур",
+    "china", "beijing", "shanghai", "shenzhen",
+    "китай", "пекин", "шанхай",
+    "thailand", "bangkok", "таиланд", "бангкок",
+    "vietnam", "ho chi minh", "hanoi", "вьетнам",
+    "malaysia", "kuala lumpur", "малайзия", "куала-лумпур",
+]
+
+# Ключевые слова для азиатских вакансий (доп. к основным)
+ASIA_KEYWORDS = [
+    "construction consultant dubai", "construction consultant uae",
+    "construction consultant qatar", "construction consultant saudi",
+    "construction consultant singapore", "construction consultant asia",
+    "infrastructure consultant dubai", "infrastructure consultant uae",
+    "technical advisor dubai", "technical advisor uae",
+    "project manager construction dubai", "project manager construction doha",
+    "capital projects dubai", "capital projects riyadh",
+    "PwC dubai construction", "Deloitte dubai construction",
+    "KPMG dubai infrastructure", "EY dubai infrastructure",
+]
 
 CHECK_INTERVAL = 7200
 SEEN_FILE = "seen_jobs_construction.json"
@@ -98,6 +133,7 @@ SEEN_FILE = "seen_jobs_construction.json"
 MODE_ALL = "all"
 MODE_NO_RUSSIA = "no_russia"
 MODE_REMOTE_ONLY = "remote_only"
+MODE_ASIA = "asia"  # только азиатские вакансии
 
 current_mode = os.environ.get("MODE_CONSTRUCTION", MODE_ALL)
 is_paused = False
@@ -115,6 +151,10 @@ def is_russia_location(area):
 
 def is_office_schedule(schedule):
     return any(s in schedule.lower() for s in ["полный день", "сменный", "вахтовый"])
+
+def is_asia_location(area, full_text):
+    combined = f"{area} {full_text}".lower()
+    return any(loc in combined for loc in ASIA_LOCATIONS)
 
 def has_stop_word(title):
     t = title.lower()
@@ -191,6 +231,17 @@ async def fetch_hh(seen, mode):
         {"text": "project auditor construction"},
         {"text": "technical due diligence"},
         {"text": "senior associate infrastructure"},
+        # Азия
+        {"text": "construction consultant Dubai"},
+        {"text": "construction consultant UAE"},
+        {"text": "construction consultant Qatar"},
+        {"text": "infrastructure consultant Dubai"},
+        {"text": "technical advisor Dubai"},
+        {"text": "capital projects Dubai"},
+        {"text": "construction manager Singapore"},
+        {"text": "технический консультант Казахстан"},
+        {"text": "строительный консалтинг Казахстан"},
+        {"text": "технический консультант Ташкент"},
         # Big 4 / Big 5
         {"text": "PwC infrastructure"},
         {"text": "Deloitte infrastructure"},
@@ -247,6 +298,8 @@ async def fetch_hh(seen, mode):
                         continue
                     if mode == MODE_REMOTE_ONLY and not is_remote_worldwide(area, schedule, full_text):
                         continue
+                    if mode == MODE_ASIA and not is_asia_location(area, full_text):
+                        continue
                     if not salary_ok(salary):
                         continue
 
@@ -295,6 +348,15 @@ async def fetch_linkedin(seen, period_seconds=86400, remote_only=False):
         "McKinsey+capital+projects",
         "advisory+capital+projects+consultant",
         "transaction+advisory+infrastructure",
+        # Азия
+        "construction+consultant+dubai",
+        "construction+consultant+uae",
+        "construction+consultant+qatar",
+        "infrastructure+consultant+dubai",
+        "technical+advisor+dubai",
+        "capital+projects+saudi+arabia",
+        "construction+consultant+singapore",
+        "construction+manager+asia",
     ]
 
     async with httpx.AsyncClient(timeout=20, follow_redirects=True) as client:
@@ -420,6 +482,9 @@ async def poll_commands():
                     elif text == "/mode_remote":
                         current_mode = MODE_REMOTE_ONLY
                         await send_telegram("✅ Режим: только remote/worldwide")
+                    elif text == "/mode_asia":
+                        current_mode = MODE_ASIA
+                        await send_telegram("✅ Режим: только азиатские вакансии (ОАЭ, КСА, Катар, Кувейт, Казахстан, Узбекистан, Сингапур, Китай, ЮВА)")
                     elif text == "/status":
                         mode_names = {
                             MODE_ALL: "все вакансии",
@@ -449,7 +514,8 @@ async def main():
     mode_names = {
         MODE_ALL: "все вакансии",
         MODE_NO_RUSSIA: "только не из России",
-        MODE_REMOTE_ONLY: "только remote/worldwide"
+        MODE_REMOTE_ONLY: "только remote/worldwide",
+        MODE_ASIA: "только Азия и Ближний Восток",
     }
     await send_telegram(
         f"✅ <b>Construction Job Monitor запущен!</b>\n"
@@ -475,4 +541,5 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
