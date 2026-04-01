@@ -7,8 +7,8 @@ from bs4 import BeautifulSoup
 import re
 
 # ============================================================
-TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN_CONSTRUCTION", "ВСТАВЬ_СВОЙ_ТОКЕН")
-TELEGRAM_CHAT_IDS = ["248752467"]  # добавь ID друга если нужно
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN_CONSTRUCTION", "8632044944:AAFaTx0nu2ZxO_RdQBtqcDq4t5WiXgIiyj8")
+TELEGRAM_CHAT_IDS = ["248752467","6522826404"]  # добавь ID друга если нужно
 
 KEYWORDS = [
     # Русские
@@ -78,7 +78,7 @@ REMOTE_MARKERS = [
     "из любой точки", "из любой страны", "home office", "wfh",
 ]
 
-SALARY_MIN = {"USD": 3000, "EUR": 3000, "RUR": 300000}
+SALARY_MIN = {"USD": 2000, "EUR": 2000, "RUR": 200000}
 
 CHECK_INTERVAL = 86400
 SEEN_FILE = "seen_jobs_construction.json"
