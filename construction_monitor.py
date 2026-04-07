@@ -109,6 +109,7 @@ REMOTE_MARKERS = [
 SALARY_MIN = {"USD": 2000, "EUR": 2000, "RUR": 300000, "KZT": 1000000}
 
 # Азиатские локации для фильтра
+# Азия и Ближний Восток — /mode_asia
 ASIA_LOCATIONS = [
     # Ближний Восток
     "dubai", "abu dhabi", "uae", "united arab emirates",
@@ -117,13 +118,6 @@ ASIA_LOCATIONS = [
     "саудовская аравия", "эр-рияд", "джидда",
     "qatar", "doha", "катар", "доха",
     "kuwait", "кувейт",
-    # СНГ + EU
-    "kazakhstan", "almaty", "astana", "nur-sultan",
-    "казахстан", "алматы", "астана",
-    "uzbekistan", "tashkent", "ташкент", "узбекистан",
-    "грузия", "армения", "тбилиси", "ереван", "georgia", "tbilisi",
-    "armenia", "erevan", "латвия", "литва", "польша", "варшава",
-    "poland", "warsaw", "serbia", "belgrade",
     # Азия
     "singapore", "сингапур",
     "china", "beijing", "shanghai", "shenzhen",
@@ -131,7 +125,18 @@ ASIA_LOCATIONS = [
     "thailand", "bangkok", "таиланд", "бангкок",
     "vietnam", "ho chi minh", "hanoi", "вьетнам",
     "malaysia", "kuala lumpur", "малайзия", "куала-лумпур",
-    "филлипины", "philippines",
+    "philippines", "manila", "филиппины", "манила",
+]
+
+# СНГ + Восточная Европа — /mode_cis_eu
+CIS_EU_LOCATIONS = [
+    "georgia", "tbilisi", "батуми", "грузия", "тбилиси",
+    "armenia", "yerevan", "ереван", "армения",
+    "poland", "warsaw", "krakow", "польша", "варшава", "краков",
+    "latvia", "riga", "латвия", "рига",
+    "lithuania", "vilnius", "литва", "вильнюс",
+    "serbia", "belgrade", "novi sad", "сербия", "белград", "нови сад",
+    "cyprus", "nicosia", "limassol", "кипр", "никосия", "лимасол",
 ]
 
 # Ключевые слова для азиатских вакансий (доп. к основным)
@@ -153,7 +158,8 @@ SEEN_FILE = "seen_jobs_construction.json"
 MODE_ALL = "all"
 MODE_NO_RUSSIA = "no_russia"
 MODE_REMOTE_ONLY = "remote_only"
-MODE_ASIA = "asia"  # только азиатские вакансии
+MODE_ASIA = "asia"  # Ближний Восток + Азия
+MODE_CIS_EU = "cis_eu"  # Грузия, Армения, Польша, Латвия, Литва, Сербия
 
 current_mode = os.environ.get("MODE_CONSTRUCTION", MODE_ALL)
 is_paused = False
@@ -175,6 +181,10 @@ def is_office_schedule(schedule):
 def is_asia_location(area, full_text):
     combined = f"{area} {full_text}".lower()
     return any(loc in combined for loc in ASIA_LOCATIONS)
+
+def is_cis_eu_location(area, full_text):
+    combined = f"{area} {full_text}".lower()
+    return any(loc in combined for loc in CIS_EU_LOCATIONS)
 
 def has_stop_word(title):
     t = title.lower()
@@ -320,6 +330,8 @@ async def fetch_hh(seen, mode):
                         continue
                     if mode == MODE_ASIA and not is_asia_location(area, full_text):
                         continue
+                    if mode == MODE_CIS_EU and not is_cis_eu_location(area, full_text):
+                        continue
                     if not salary_ok(salary):
                         continue
 
@@ -349,47 +361,92 @@ async def fetch_hh(seen, mode):
 
     return jobs
 
-async def fetch_linkedin(seen, period_seconds=86400, remote_only=False):
+# LinkedIn geoId коды стран
+LINKEDIN_GEO = {
+    "uae":       "104305776",
+    "qatar":     "104305776",  # используем UAE как базу для Залива
+    "saudi":     "101004012",
+    "singapore": "102454443",
+    "georgia":   "106093601",
+    "armenia":   "102669407",
+    "poland":    "105072130",
+    "latvia":    "102974008",
+    "lithuania": "101464403",
+    "serbia":    "101855366",
+    "cyprus":    "104246216",
+    "kazakhstan":"104289538",
+    "remote":    "",           # без привязки к стране
+}
+
+async def fetch_linkedin(seen, period_seconds=86400, remote_only=False, mode=MODE_ALL):
     jobs = []
-    queries = [
-        "construction+consultant",
-        "construction+project+manager+remote",
-        "capital+projects+consultant",
-        "construction+advisory",
-        "technical+auditor+construction",
-        "technical+advisor+infrastructure",
-        "project+auditor",
-        "technical+due+diligence",
-        "senior+associate+infrastructure",
-        "PwC+infrastructure+advisory",
-        "Deloitte+infrastructure+advisory",
-        "KPMG+infrastructure+advisory",
-        "EY+infrastructure+advisory",
-        "McKinsey+capital+projects",
-        "advisory+capital+projects+consultant",
-        "transaction+advisory+infrastructure",
-        # Азия
-        "construction+consultant+dubai",
-        "construction+consultant+uae",
-        "construction+consultant+qatar",
-        "infrastructure+consultant+dubai",
-        "technical+advisor+dubai",
-        "capital+projects+saudi+arabia",
-        "construction+consultant+singapore",
-        "construction+manager+asia",
-    ]
+
+    # Базовые запросы с geoId по нужным странам
+    # Формат: (keywords, geoId, label)
+    if mode == MODE_ASIA:
+        geo_queries = [
+            ("construction+consultant", "104305776", "UAE"),
+            ("infrastructure+consultant", "104305776", "UAE"),
+            ("technical+advisor", "104305776", "UAE"),
+            ("capital+projects", "101004012", "Saudi Arabia"),
+            ("construction+advisory", "101004012", "Saudi Arabia"),
+            ("construction+consultant", "102454443", "Singapore"),
+            ("infrastructure+consultant", "102454443", "Singapore"),
+            ("technical+due+diligence", "104305776", "UAE"),
+        ]
+    elif mode == MODE_CIS_EU:
+        geo_queries = [
+            ("construction+consultant", "106093601", "Georgia"),
+            ("infrastructure+consultant", "106093601", "Georgia"),
+            ("technical+advisor", "102669407", "Armenia"),
+            ("construction+consultant", "105072130", "Poland"),
+            ("infrastructure+consultant", "105072130", "Poland"),
+            ("construction+consultant", "101855366", "Serbia"),
+            ("technical+advisor", "102974008", "Latvia"),
+            ("construction+consultant", "104246216", "Cyprus"),
+        ]
+    elif remote_only:
+        geo_queries = [
+            ("construction+consultant+remote", "", "Remote"),
+            ("capital+projects+consultant+remote", "", "Remote"),
+            ("technical+advisor+infrastructure+remote", "", "Remote"),
+            ("construction+advisory+remote", "", "Remote"),
+        ]
+    else:
+        # mode_all и mode_norussia — широкий поиск по всем регионам
+        geo_queries = [
+            ("construction+consultant", "104305776", "UAE"),
+            ("construction+consultant", "101004012", "Saudi Arabia"),
+            ("construction+consultant", "102454443", "Singapore"),
+            ("construction+consultant", "106093601", "Georgia"),
+            ("construction+consultant", "105072130", "Poland"),
+            ("infrastructure+consultant", "104305776", "UAE"),
+            ("technical+due+diligence", "104305776", "UAE"),
+            ("capital+projects+consultant", "101004012", "Saudi Arabia"),
+            ("PwC+infrastructure", "104305776", "UAE"),
+            ("Deloitte+infrastructure", "104305776", "UAE"),
+            ("KPMG+infrastructure", "102454443", "Singapore"),
+            ("construction+consultant", "101855366", "Serbia"),
+            ("construction+consultant", "104246216", "Cyprus"),
+            ("construction+consultant+remote", "", "Remote"),
+        ]
 
     async with httpx.AsyncClient(timeout=20, follow_redirects=True) as client:
-        for query in queries:
+        for keywords, geo_id, label in geo_queries:
             try:
+                geo_param = f"&geoId={geo_id}" if geo_id else ""
                 wt = "&f_WT=2" if remote_only else ""
-                url = f"https://www.linkedin.com/jobs/search/?keywords={query}{wt}&f_TPR=r{period_seconds}&sortBy=DD"
+                url = (
+                    f"https://www.linkedin.com/jobs/search/"
+                    f"?keywords={keywords}{geo_param}{wt}"
+                    f"&f_TPR=r{period_seconds}&sortBy=DD"
+                )
                 resp = await client.get(url, headers={
                     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                     "Accept-Language": "en-US,en;q=0.9",
                 })
                 soup = BeautifulSoup(resp.text, "html.parser")
-                for card in soup.find_all("div", class_=re.compile("job-search-card|base-card"))[:20]:
+                for card in soup.find_all("div", class_=re.compile("job-search-card|base-card"))[:15]:
                     try:
                         title_el = card.find("h3")
                         company_el = card.find("h4")
@@ -400,15 +457,21 @@ async def fetch_linkedin(seen, period_seconds=86400, remote_only=False):
                         title = title_el.get_text(strip=True)
                         company = company_el.get_text(strip=True) if company_el else ""
                         link = link_el["href"].split("?")[0]
-                        location = location_el.get_text(strip=True) if location_el else ""
+                        location = location_el.get_text(strip=True) if location_el else label
+
+                        loc_lower = location.lower()
                         if is_usa(location):
                             continue
+                        if "united states" in loc_lower or ", us" in loc_lower:
+                            continue
+
                         job_id = f"li_{abs(hash(link))}"
                         if job_id in seen:
                             continue
                         jobs.append({
-                            "id": job_id, "source": "LinkedIn", "title": title,
-                            "employer": company, "salary": "", "location": location,
+                            "id": job_id, "source": f"LinkedIn ({label})",
+                            "title": title, "employer": company,
+                            "salary": "", "location": location or label,
                             "link": link, "is_russian": is_russian_text(title)
                         })
                         seen.add(job_id)
@@ -416,7 +479,7 @@ async def fetch_linkedin(seen, period_seconds=86400, remote_only=False):
                         continue
                 await asyncio.sleep(1)
             except Exception as e:
-                print(f"Ошибка LinkedIn '{query}': {e}")
+                print(f"Ошибка LinkedIn '{label}': {e}")
 
     return jobs
 
@@ -444,7 +507,7 @@ async def run_check():
     print(f"[{datetime.now().strftime('%H:%M:%S')}] Проверяю... режим: {current_mode}")
     remote_only = current_mode == MODE_REMOTE_ONLY
     hh_jobs = await fetch_hh(seen, current_mode)
-    li_jobs = await fetch_linkedin(seen, 86400, remote_only)
+    li_jobs = await fetch_linkedin(seen, 86400, remote_only, current_mode)
     print(f"hh.ru: {len(hh_jobs)}, LinkedIn: {len(li_jobs)}")
     await send_jobs(hh_jobs + li_jobs)
     save_seen(seen)
@@ -460,7 +523,7 @@ async def run_refresh():
     seen = set()
     remote_only = current_mode == MODE_REMOTE_ONLY
     hh_jobs = await fetch_hh(seen, current_mode)
-    li_jobs = await fetch_linkedin(seen, 345600, remote_only)
+    li_jobs = await fetch_linkedin(seen, 345600, remote_only, current_mode)
     await send_jobs(hh_jobs + li_jobs)
     save_seen(seen)
 
@@ -504,13 +567,17 @@ async def poll_commands():
                         await send_telegram("✅ Режим: только remote/worldwide")
                     elif text == "/mode_asia":
                         current_mode = MODE_ASIA
-                        await send_telegram("✅ Режим: только азиатские вакансии (ОАЭ, КСА, Катар, Кувейт, Казахстан, Узбекистан, Сингапур, Китай, ЮВА)")
+                        await send_telegram("✅ Режим: Ближний Восток + Азия (ОАЭ, КСА, Катар, Кувейт, Сингапур, Китай, Таиланд, Вьетнам, Малайзия, Филиппины)")
+                    elif text == "/mode_cis_eu":
+                        current_mode = MODE_CIS_EU
+                        await send_telegram("✅ Режим: СНГ + Восточная Европа (Грузия, Армения, Польша, Латвия, Литва, Сербия, Кипр)")
                     elif text == "/status":
                         mode_names = {
                             MODE_ALL: "все вакансии",
                             MODE_NO_RUSSIA: "только не из России",
                             MODE_REMOTE_ONLY: "только remote/worldwide",
-                            MODE_ASIA: "только Азия и Ближний Восток",
+                            MODE_ASIA: "Ближний Восток + Азия",
+                            MODE_CIS_EU: "СНГ + Восточная Европа",
                         }
                         status = "⏸ На паузе" if is_paused else "▶️ Активен"
                         await send_telegram(
@@ -524,7 +591,8 @@ async def poll_commands():
                             f"/mode_all — все вакансии\n"
                             f"/mode_norussia — только не из России\n"
                             f"/mode_remote — только remote/worldwide\n"
-                            f"/mode_asia — ОАЭ, КСА, Катар, Сингапур, Грузия, Польша и др.\n"
+                            f"/mode_asia — ОАЭ, КСА, Катар, Сингапур, Азия\n"
+                            f"/mode_cis_eu — Грузия, Армения, Польша, Латвия, Литва, Сербия\n"
                             f"/refresh — подборка за 4 дня\n"
                             f"/status — этот экран"
                         )
@@ -537,7 +605,8 @@ async def main():
         MODE_ALL: "все вакансии",
         MODE_NO_RUSSIA: "только не из России",
         MODE_REMOTE_ONLY: "только remote/worldwide",
-        MODE_ASIA: "только Азия и Ближний Восток",
+        MODE_ASIA: "Ближний Восток + Азия",
+        MODE_CIS_EU: "СНГ + Восточная Европа",
     }
     await send_telegram(
         f"✅ <b>Construction Job Monitor запущен!</b>\n"
@@ -550,7 +619,8 @@ async def main():
         f"/mode_all — все вакансии\n"
         f"/mode_norussia — только не из России\n"
         f"/mode_remote — только remote/worldwide\n"
-        f"/mode_asia — ОАЭ, КСА, Катар, Сингапур, Грузия, Польша и др.\n"
+        f"/mode_asia — ОАЭ, КСА, Катар, Сингапур, Азия\n"
+        f"/mode_cis_eu — Грузия, Армения, Польша, Латвия, Литва, Сербия\n"
         f"/refresh — подборка за 4 дня\n"
         f"/status — текущие настройки"
     )
@@ -564,5 +634,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
-
