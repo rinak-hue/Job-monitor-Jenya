@@ -509,7 +509,8 @@ async def poll_commands():
                         mode_names = {
                             MODE_ALL: "все вакансии",
                             MODE_NO_RUSSIA: "только не из России",
-                            MODE_REMOTE_ONLY: "только remote/worldwide"
+                            MODE_REMOTE_ONLY: "только remote/worldwide",
+                            MODE_ASIA: "только Азия и Ближний Восток",
                         }
                         status = "⏸ На паузе" if is_paused else "▶️ Активен"
                         await send_telegram(
@@ -523,6 +524,7 @@ async def poll_commands():
                             f"/mode_all — все вакансии\n"
                             f"/mode_norussia — только не из России\n"
                             f"/mode_remote — только remote/worldwide\n"
+                            f"/mode_asia — ОАЭ, КСА, Катар, Сингапур, Грузия, Польша и др.\n"
                             f"/refresh — подборка за 4 дня\n"
                             f"/status — этот экран"
                         )
@@ -548,6 +550,7 @@ async def main():
         f"/mode_all — все вакансии\n"
         f"/mode_norussia — только не из России\n"
         f"/mode_remote — только remote/worldwide\n"
+        f"/mode_asia — ОАЭ, КСА, Катар, Сингапур, Грузия, Польша и др.\n"
         f"/refresh — подборка за 4 дня\n"
         f"/status — текущие настройки"
     )
