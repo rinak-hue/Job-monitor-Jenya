@@ -396,14 +396,25 @@ async def fetch_linkedin(seen, period_seconds=86400, remote_only=False, mode=MOD
         ]
     elif mode == MODE_CIS_EU:
         geo_queries = [
+            # Грузия
             ("construction+consultant", "106093601", "Georgia"),
-            ("infrastructure+consultant", "106093601", "Georgia"),
-            ("technical+advisor", "102669407", "Armenia"),
+            ("technical+advisor+infrastructure", "106093601", "Georgia"),
+            # Армения
+            ("construction+consultant", "102669407", "Armenia"),
+            ("infrastructure+consultant", "102669407", "Armenia"),
+            # Польша — только 1 запрос чтобы не доминировала
             ("construction+consultant", "105072130", "Poland"),
-            ("infrastructure+consultant", "105072130", "Poland"),
+            # Сербия
             ("construction+consultant", "101855366", "Serbia"),
+            ("infrastructure+consultant", "101855366", "Serbia"),
+            # Латвия
+            ("construction+consultant", "102974008", "Latvia"),
             ("technical+advisor", "102974008", "Latvia"),
+            # Литва
+            ("construction+consultant", "101464403", "Lithuania"),
+            # Кипр
             ("construction+consultant", "104246216", "Cyprus"),
+            ("technical+due+diligence", "104246216", "Cyprus"),
         ]
     elif remote_only:
         geo_queries = [
@@ -463,6 +474,12 @@ async def fetch_linkedin(seen, period_seconds=86400, remote_only=False, mode=MOD
                         if is_usa(location):
                             continue
                         if "united states" in loc_lower or ", us" in loc_lower:
+                            continue
+                        # Для mode_cis_eu — строгий whitelist по локации
+                        if mode == MODE_CIS_EU and location and not is_cis_eu_location("", location):
+                            continue
+                        # Для mode_asia — строгий whitelist по локации
+                        if mode == MODE_ASIA and location and not is_asia_location("", location):
                             continue
 
                         job_id = f"li_{abs(hash(link))}"
